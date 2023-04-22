@@ -1,0 +1,1 @@
+docker run --rm -v $(pwd):/src -w /src -u 1000 kjconroy/sqlc generate
