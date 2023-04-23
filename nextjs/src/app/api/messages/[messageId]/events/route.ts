@@ -1,9 +1,23 @@
 import { prisma } from "@/app/prisma/prisma";
 import { ChatServiceClientFactory } from "@/grpc/chat-service-client";
+import { getToken } from "next-auth/jwt";
 import { NextRequest } from "next/server";
 import { WritableStreamDefaultWriter } from "stream/web";
 
-export async function GET(_request: NextRequest, { params }: {params: { messageId: string }}) {
+export async function GET(request: NextRequest, { params }: {params: { messageId: string }}) {
+  const token = await getToken({ req: request })
+  const transformStream = new TransformStream()
+  const writer = transformStream.writable.getWriter()
+
+  if (!token) {
+    setTimeout(async () => {
+      writeStream(writer, 'error', 'not authenticated')
+      await writer.close()
+    }, 100)
+
+    return response(transformStream, 401)
+  }
+
   const message = await prisma.message.findUniqueOrThrow({
     where: {
       id: params.messageId
@@ -13,8 +27,14 @@ export async function GET(_request: NextRequest, { params }: {params: { messageI
     }
   })
 
-  const transformStream = new TransformStream()
-  const writer = transformStream.writable.getWriter()
+  if(message.chat.user_id !== token.sub) {
+    setTimeout(async () => {
+      writeStream(writer, 'error', 'not found')
+      await writer.close()
+    }, 100)
+
+    return response(transformStream, 404)
+  }
 
   if(message.has_answered) {
     setTimeout(async () => {

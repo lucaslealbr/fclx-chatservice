@@ -1,7 +1,23 @@
+import { withAuth } from "@/app/api/helpers";
 import { prisma } from "@/app/prisma/prisma";
+import { JWT } from "next-auth/jwt";
 import { NextRequest, NextResponse,  } from "next/server";
 
-export async function GET(_request: NextRequest, { params }: {params: { chatId: string }}) {
+const getRequest = async (
+  _request: NextRequest,
+  token: JWT,
+  { params }: {params: { chatId: string }}
+) => {
+  const chat = await prisma.chat.findUniqueOrThrow({
+    where: {
+      id: params.chatId
+    }
+  })
+
+  if(chat.user_id !== token.sub) {
+    return NextResponse.json({ error: 'not found' }, { status: 404 })
+  }
+
   const messages = await prisma.message.findMany({
     where: {
       chat_id: params.chatId
@@ -14,12 +30,22 @@ export async function GET(_request: NextRequest, { params }: {params: { chatId: 
   return NextResponse.json(messages)
 }
 
-export async function POST(request: NextRequest, { params }: {params: { chatId: string }}) {
+const postRequest = async (
+  request: NextRequest,
+  token: JWT,
+  { params }: {params: { chatId: string }}
+) => {
   const chat = await prisma.chat.findUniqueOrThrow({
     where: {
       id: params.chatId
     }
   })
+
+  
+  if(chat.user_id !== token.sub) {
+    return NextResponse.json({ error: 'not found' }, { status: 404 })
+  }
+
   const body = await request.json()
   const messageCreated = await prisma.message.create({
     data: {
@@ -30,3 +56,6 @@ export async function POST(request: NextRequest, { params }: {params: { chatId: 
 
   return NextResponse.json(messageCreated)
 }
+
+export const GET = withAuth(getRequest)
+export const POST = withAuth(postRequest)
